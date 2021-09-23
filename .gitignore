@@ -27,3 +27,7 @@
 **/_vimtags
 _build/
 RTE/
+*.ind
+*.ld
+*.jlink
+
