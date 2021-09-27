@@ -69,6 +69,11 @@
 #define SCAN_WINDOW 80
 #endif
 
+// <o> ES_STOPWATCH_MAX_USERS - Maximum amount of users that can be registered with the es_stopwatch module.
+#ifndef ES_STOPWATCH_MAX_USERS
+#define ES_STOPWATCH_MAX_USERS 4
+#endif
+
 // </h> 
 //==========================================================
 
@@ -5937,7 +5942,7 @@
 // <31=> 1024 Hz 
 
 #ifndef APP_TIMER_CONFIG_RTC_FREQUENCY
-#define APP_TIMER_CONFIG_RTC_FREQUENCY 0
+#define APP_TIMER_CONFIG_RTC_FREQUENCY 1 // 0
 #endif
 
 // <o> APP_TIMER_CONFIG_IRQ_PRIORITY  - Interrupt priority
@@ -5954,7 +5959,7 @@
 // <7=> 7 
 
 #ifndef APP_TIMER_CONFIG_IRQ_PRIORITY
-#define APP_TIMER_CONFIG_IRQ_PRIORITY 7
+#define APP_TIMER_CONFIG_IRQ_PRIORITY 6 // 7
 #endif
 
 // <o> APP_TIMER_CONFIG_OP_QUEUE_SIZE - Capacity of timer requests queue. 
@@ -5981,7 +5986,7 @@
 // <i> This option can be used when app_timer is used for timestamping.
 
 #ifndef APP_TIMER_KEEPS_RTC_ACTIVE
-#define APP_TIMER_KEEPS_RTC_ACTIVE 0
+#define APP_TIMER_KEEPS_RTC_ACTIVE 1 // 0
 #endif
 
 // <h> App Timer Legacy configuration - Legacy configuration.

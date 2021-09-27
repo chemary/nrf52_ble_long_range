@@ -61,35 +61,12 @@
 #include "sdk_config.h"
 
 #include "battery_voltage_saadc.h"
+#include "stopwatch.h"
 #include "main.h"
 
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
 #include "nrf_log_default_backends.h"
-
-#define CONN_INTERVAL_DEFAULT (uint16_t)(MSEC_TO_UNITS(7.5, UNIT_1_25_MS)) /**< Default connection interval used at connection establishment by central side. */
-#define CONN_INTERVAL_MIN (uint16_t)(MSEC_TO_UNITS(7.5, UNIT_1_25_MS))     /**< Minimum acceptable connection interval, in 1.25 ms units. */
-#define CONN_INTERVAL_MAX (uint16_t)(MSEC_TO_UNITS(500, UNIT_1_25_MS))     /**< Maximum acceptable connection interval, in 1.25 ms units. */
-#define CONN_SUP_TIMEOUT (uint16_t)(MSEC_TO_UNITS(8000, UNIT_10_MS))       /**< Connection supervisory timeout (4 seconds). */
-
-#define SLAVE_LATENCY 0 /**< Slave latency. */
-
-#define PHY_SELECTION_LED BSP_BOARD_LED_0          /**< LED indicating which phy is in use. */
-#define OUTPUT_POWER_SELECTION_LED BSP_BOARD_LED_1 /**< LED indicating at which ouput power the radio is transmitting */
-#define NON_CONN_ADV_LED BSP_BOARD_LED_2           /**< LED indicting if the device is advertising non-connectable advertising or not. */
-#define CONN_ADV_CONN_STATE_LED BSP_BOARD_LED_3    /**< LED indicating that if device is advertising with connectable advertising, in a connected state, or none. */
-
-#define PHY_SELECTION_BUTTON BSP_BUTTON_0
-#define PHY_SELECTION_BUTTON_EVENT BSP_EVENT_KEY_0
-#define OUTPUT_POWER_SELECTION_BUTTON BSP_BUTTON_1
-#define OUTPUT_POWER_SELECTION_BUTTON_EVENT BSP_EVENT_KEY_1
-#define NON_CONN_OR_CONN_ADV_BUTTON BSP_BUTTON_2
-#define NON_CONN_OR_CONN_ADV_BUTTON_EVENT BSP_EVENT_KEY_2
-#define BUTTON_NOT_IN_USE BSP_BUTTON_3
-#define BUTTON_NOT_IN_USE_EVENT BSP_EVENT_KEY_3
-
-#define FAST_BLINK_INTERVAL APP_TIMER_TICKS(200)
-#define SLOW_BLINK_INTERVAL APP_TIMER_TICKS(750)
 
 APP_TIMER_DEF(m_non_conn_fast_blink_timer_id);  /**< Timer used to toggle LED indicating non-connectable advertising on the dev. kit. */
 APP_TIMER_DEF(m_conn_adv_fast_blink_timer_id);  /**< Timer used to toggle LED indicating connectable advertising on the dev. kit. */
@@ -97,35 +74,27 @@ APP_TIMER_DEF(m_1Mbps_led_slow_blink_timer_id); /**< Timer used to toggle LED fo
 APP_TIMER_DEF(m_8dBm_led_slow_blink_timer_id);  /**< Timer used to toggle LED for output power selection indication on the dev.kit. */
 APP_TIMER_DEF(m_battery_timer_id);              /**< Battery timer. */
 
-#define APP_BLE_CONN_CFG_TAG 1  /**< A tag that refers to the BLE stack configuration. */
-#define APP_BLE_OBSERVER_PRIO 3 /**< Application's BLE observer priority. You shouldn't need to modify this value. */
-
 static uint8_t m_adv_handle = BLE_GAP_ADV_SET_HANDLE_NOT_SET; /**< Advertising handle used to identify an advertising set. */
 static uint8_t m_enc_advdata[BLE_GAP_ADV_SET_DATA_SIZE_MAX];  /**< Buffer for storing an encoded advertising set. */
-
-// Type holding the two output power options for this application.
-typedef enum {
-    SELECTION_0_dBm = 0,
-    SELECTION_8_dBm = 8
-} output_power_seclection_t;
-
-// Type holding the two advertising selection modes.
-typedef enum {
-    SELECTION_CONNECTABLE = 0,
-    SELECTION_NON_CONNECTABLE
-} adv_scan_type_seclection_t;
-
-// Type holding the two possible phy options.
-typedef enum {
-    SELECTION_1M_PHY = 0,
-    SELECTION_CODED_PHY
-} adv_scan_phy_seclection_t;
 
 static adv_scan_type_seclection_t m_adv_scan_type_selected = SELECTION_CONNECTABLE; /**< Global variable holding the current scan selection mode. */
 static adv_scan_phy_seclection_t m_adv_scan_phy_selected = SELECTION_CODED_PHY;     /**< Global variable holding the current phy selection. */
 static output_power_seclection_t m_output_power_selected = SELECTION_8_dBm;         /**< Global variable holding the current output power selection. */
 static bool m_app_initiated_disconnect = false;                                     //The application has initiated disconnect. Used to "tell" on_ble_gap_evt_disconnected() to not start advertising.
 static bool m_waiting_for_disconnect_evt = false;                                   // Disconnect is initiated. The application has to wait for BLE_GAP_EVT_DISCONNECTED before proceeding.
+
+
+static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; /**< Handle of the current BLE connection .*/
+static uint8_t m_gap_role = BLE_GAP_ROLE_INVALID;        /**< BLE role for this connection, see @ref BLE_GAP_ROLES */
+
+static uint32_t m_le_adv_cnt;
+static uint8_t  m_time_sec_sw_id;
+static uint8_t  m_tlm_refresh_sw_id;
+
+static int8_t vbatt[1];    // Variable to hold voltage reading
+static int8_t temp[2];     // variable to hold temp reading
+static int8_t adv_cnt[4];  //!< Advertising PDU count.
+static int8_t sec_cnt[4];  //!< Time since power-on or reboot.
 
 /**@brief Struct that contains pointers to the encoded advertising data. */
 static ble_gap_adv_data_t m_adv_data ={
@@ -139,9 +108,6 @@ static ble_gap_adv_data_t m_adv_data ={
     }
 };
 
-static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; /**< Handle of the current BLE connection .*/
-static uint8_t m_gap_role = BLE_GAP_ROLE_INVALID;        /**< BLE role for this connection, see @ref BLE_GAP_ROLES */
-
 // Connection parameters requested for connection.
 static ble_gap_conn_params_t m_conn_param = {
     .min_conn_interval = CONN_INTERVAL_MIN, // Minimum connection interval.
@@ -149,9 +115,6 @@ static ble_gap_conn_params_t m_conn_param = {
     .slave_latency = SLAVE_LATENCY,         // Slave latency.
     .conn_sup_timeout = CONN_SUP_TIMEOUT    // Supervisory timeout.
 };
-
-static int8_t vbatt[2]; // Variable to hold voltage reading
-static int8_t temp[4];  // variable to hold temp reading
 
 static void non_conn_adv_fast_blink_timeout_handler(void *p_context) {
     UNUSED_PARAMETER(p_context);
@@ -716,17 +679,29 @@ static void set_current_adv_params_and_start_advertising(void) {
 static void advdata_update(void) {
     ret_code_t ret;
 
+    increase_adv_cnt();
+    // update_time();
+    update_adv_cnt();
+    update_temp();
     update_vbatt();
 
-    ble_advdata_service_data_t service_data[2];
+    ble_advdata_service_data_t service_data[4];
 
-    service_data[0].service_uuid = BLE_UUID_BATTERY_SERVICE;
+    service_data[0].service_uuid =  BLE_UUID_BATTERY_SERVICE;
     service_data[0].data.size = sizeof(vbatt);
     service_data[0].data.p_data = (uint8_t *)&vbatt;
 
     service_data[1].service_uuid = BLE_UUID_HEALTH_THERMOMETER_SERVICE;
     service_data[1].data.size = sizeof(temp);
     service_data[1].data.p_data = (uint8_t *)&temp;
+
+    service_data[2].service_uuid = 0x1801; // 0x2700 unitless
+    service_data[2].data.size = sizeof(adv_cnt);
+    service_data[2].data.p_data = (uint8_t *)&adv_cnt;
+
+    service_data[3].service_uuid = 0x2703; // time (second) // 0x1847 Device Time
+    service_data[3].data.size = sizeof(sec_cnt);
+    service_data[3].data.p_data = (uint8_t *)&sec_cnt;
 
     ble_gap_adv_params_t adv_params = {
         .properties = {
@@ -746,7 +721,7 @@ static void advdata_update(void) {
         .name_type = BLE_ADVDATA_FULL_NAME,
         .flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE,
         .include_appearance = false,
-        .service_data_count = 2,
+        .service_data_count = 3,
         .p_service_data_array = service_data
     };
 
@@ -769,15 +744,59 @@ static void advdata_update(void) {
 static void update_vbatt(void) {
     uint16_t vbatt_tmp;              // Variable to hold voltage reading
     battery_voltage_get(&vbatt_tmp); // Get new battery voltage
+
     NRF_LOG_INFO("Voltage: %d", vbatt_tmp);
-    vbatt[0] = (uint8_t)(vbatt_tmp >> 8);
-    vbatt[1] = (uint8_t)vbatt_tmp;
+    vbatt[0] = (uint8_t)(vbatt_tmp/100); // 1V = 10
+    //vbatt[0] = (uint8_t)(vbatt_tmp >> 8);
+    //vbatt[1] = (uint8_t)vbatt_tmp;
 }
+
+/**@brief Function for updating the TEMP field of TLM*/
+static void update_temp(void)
+{
+    int32_t temperature;                                        // variable to hold temp reading
+    (void)sd_temp_get(&temperature);                            // get new temperature
+    NRF_LOG_INFO("Temperature: %d", temperature);
+    int16_t temp_new = (int16_t) temperature;                   // convert from int32_t to int16_t
+    //temp[0] = (uint8_t)((temp_new >> 2) & 0xFFUL); // Right-shift by two to remove decimal part
+    //temp[1] = (uint8_t)((temp_new << 6) & 0xFFUL); // Left-shift 6 to get fractional part with 0.25 degrees C resolution
+
+    temp_new = temp_new * 25; // temp in 10bits converted to 0.01C units (100*t/4) 
+    temp[1] = (uint8_t)(temp_new >> 8);
+    temp[0] = (uint8_t)temp_new;
+}
+
+/**@brief Function for updating the ADV_SEC field of TLM*/
+static void update_time(void)
+{
+    static uint32_t time_total_100_ms = 0;
+    uint32_t        be_time_100_ms; // Big endian version of 0.1 second counter.
+
+    time_total_100_ms += es_stopwatch_check(m_time_sec_sw_id);
+
+    be_time_100_ms = BYTES_REVERSE_32BIT(time_total_100_ms);
+
+    memcpy(sec_cnt, &be_time_100_ms, 4);
+}
+
+static void increase_adv_cnt(void)
+{
+    m_le_adv_cnt++;
+}
+
+static void update_adv_cnt(void)
+{
+    uint32_t be_adv_cnt = BYTES_REVERSE_32BIT(m_le_adv_cnt);
+    memcpy(adv_cnt, (uint8_t *)(&be_adv_cnt), 4);
+}
+
 
 static void update_vbatt_init(void) {
     uint32_t err_code;
-    err_code = app_timer_start(m_battery_timer_id, SLOW_BLINK_INTERVAL, NULL);
+    err_code = app_timer_start(m_battery_timer_id, UPDATE_ADV_INTERVAL, NULL);
     APP_ERROR_CHECK(err_code);
+
+    // es_stopwatch_init();
 }
 
 int main(void) {
