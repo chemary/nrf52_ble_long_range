@@ -59,16 +59,6 @@
 #define DEVICE_NAME "Cat Tracker"
 #endif
 
-// <o> SCAN_INTERVAL - Scanning interval, determines scan interval in units of 0.625 millisecond. 
-#ifndef SCAN_INTERVAL
-#define SCAN_INTERVAL 160
-#endif
-
-// <o> SCAN_WINDOW - Scanning window, determines scan window in units of 0.625 millisecond. 
-#ifndef SCAN_WINDOW
-#define SCAN_WINDOW 80
-#endif
-
 // <o> ES_STOPWATCH_MAX_USERS - Maximum amount of users that can be registered with the es_stopwatch module.
 #ifndef ES_STOPWATCH_MAX_USERS
 #define ES_STOPWATCH_MAX_USERS 4

@@ -12,22 +12,9 @@
 
 #define SLAVE_LATENCY 0 /**< Slave latency. */
 
-#define PHY_SELECTION_LED BSP_BOARD_LED_0          /**< LED indicating which phy is in use. */
-#define OUTPUT_POWER_SELECTION_LED BSP_BOARD_LED_1 /**< LED indicating at which ouput power the radio is transmitting */
-#define NON_CONN_ADV_LED BSP_BOARD_LED_2           /**< LED indicting if the device is advertising non-connectable advertising or not. */
-#define CONN_ADV_CONN_STATE_LED BSP_BOARD_LED_3    /**< LED indicating that if device is advertising with connectable advertising, in a connected state, or none. */
+#define NON_CONN_OR_CONN_ADV_BUTTON BSP_BUTTON_0
+#define NON_CONN_OR_CONN_ADV_BUTTON_EVENT BSP_EVENT_KEY_0
 
-#define PHY_SELECTION_BUTTON BSP_BUTTON_0
-#define PHY_SELECTION_BUTTON_EVENT BSP_EVENT_KEY_0
-#define OUTPUT_POWER_SELECTION_BUTTON BSP_BUTTON_1
-#define OUTPUT_POWER_SELECTION_BUTTON_EVENT BSP_EVENT_KEY_1
-#define NON_CONN_OR_CONN_ADV_BUTTON BSP_BUTTON_2
-#define NON_CONN_OR_CONN_ADV_BUTTON_EVENT BSP_EVENT_KEY_2
-#define BUTTON_NOT_IN_USE BSP_BUTTON_3
-#define BUTTON_NOT_IN_USE_EVENT BSP_EVENT_KEY_3
-
-#define FAST_BLINK_INTERVAL APP_TIMER_TICKS(200)
-#define SLOW_BLINK_INTERVAL APP_TIMER_TICKS(750)
 #define UPDATE_ADV_INTERVAL APP_TIMER_TICKS(1*1000)
 
 #define APP_BLE_CONN_CFG_TAG 1  /**< A tag that refers to the BLE stack configuration. */
@@ -61,3 +48,4 @@ static void increase_adv_cnt(void);
 static void update_adv_cnt(void);
 static void disconnect_stop_adv(void);
 static void advertising_start(void);
+static void advertising_data_set(void);

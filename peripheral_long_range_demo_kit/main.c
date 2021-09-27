@@ -68,10 +68,6 @@
 #include "nrf_log_ctrl.h"
 #include "nrf_log_default_backends.h"
 
-APP_TIMER_DEF(m_non_conn_fast_blink_timer_id);  /**< Timer used to toggle LED indicating non-connectable advertising on the dev. kit. */
-APP_TIMER_DEF(m_conn_adv_fast_blink_timer_id);  /**< Timer used to toggle LED indicating connectable advertising on the dev. kit. */
-APP_TIMER_DEF(m_1Mbps_led_slow_blink_timer_id); /**< Timer used to toggle LED for phy selection indication on the dev.kit. */
-APP_TIMER_DEF(m_8dBm_led_slow_blink_timer_id);  /**< Timer used to toggle LED for output power selection indication on the dev.kit. */
 APP_TIMER_DEF(m_battery_timer_id);              /**< Battery timer. */
 
 static uint8_t m_adv_handle = BLE_GAP_ADV_SET_HANDLE_NOT_SET; /**< Advertising handle used to identify an advertising set. */
@@ -82,7 +78,6 @@ static adv_scan_phy_seclection_t m_adv_scan_phy_selected = SELECTION_CODED_PHY; 
 static output_power_seclection_t m_output_power_selected = SELECTION_8_dBm;         /**< Global variable holding the current output power selection. */
 static bool m_app_initiated_disconnect = false;                                     //The application has initiated disconnect. Used to "tell" on_ble_gap_evt_disconnected() to not start advertising.
 static bool m_waiting_for_disconnect_evt = false;                                   // Disconnect is initiated. The application has to wait for BLE_GAP_EVT_DISCONNECTED before proceeding.
-
 
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; /**< Handle of the current BLE connection .*/
 static uint8_t m_gap_role = BLE_GAP_ROLE_INVALID;        /**< BLE role for this connection, see @ref BLE_GAP_ROLES */
@@ -97,7 +92,7 @@ static int8_t adv_cnt[4];  //!< Advertising PDU count.
 static int8_t sec_cnt[4];  //!< Time since power-on or reboot.
 
 /**@brief Struct that contains pointers to the encoded advertising data. */
-static ble_gap_adv_data_t m_adv_data ={
+static ble_gap_adv_data_t m_adv_data = {
     .adv_data = {
         .p_data = m_enc_advdata,
         .len = BLE_GAP_ADV_SET_DATA_SIZE_MAX
@@ -112,35 +107,17 @@ static ble_gap_adv_data_t m_adv_data ={
 static ble_gap_conn_params_t m_conn_param = {
     .min_conn_interval = CONN_INTERVAL_MIN, // Minimum connection interval.
     .max_conn_interval = CONN_INTERVAL_MAX, // Maximum connection interval.
-    .slave_latency = SLAVE_LATENCY,         // Slave latency.
-    .conn_sup_timeout = CONN_SUP_TIMEOUT    // Supervisory timeout.
+    .slave_latency     = SLAVE_LATENCY,         // Slave latency.
+    .conn_sup_timeout  = CONN_SUP_TIMEOUT    // Supervisory timeout.
 };
-
-static void non_conn_adv_fast_blink_timeout_handler(void *p_context) {
-    UNUSED_PARAMETER(p_context);
-    bsp_board_led_invert(NON_CONN_ADV_LED);
-}
-
-static void conn_adv_fast_blink_timeout_handler(void *p_context) {
-    UNUSED_PARAMETER(p_context);
-    bsp_board_led_invert(CONN_ADV_CONN_STATE_LED);
-}
-
-static void led_1Mbps_slow_blink_timeout_handler(void *p_context) {
-    UNUSED_PARAMETER(p_context);
-    bsp_board_led_invert(PHY_SELECTION_LED);
-}
-
-static void led_8dBm_slow_blink_timeout_handler(void *p_context) {
-    UNUSED_PARAMETER(p_context);
-    bsp_board_led_invert(OUTPUT_POWER_SELECTION_LED);
-}
 
 static void advdata_update_handler(void *p_context) {
     UNUSED_PARAMETER(p_context);
-    disconnect_stop_adv();
-    advdata_update();
-    advertising_start();
+    if (m_conn_handle == BLE_CONN_HANDLE_INVALID) {
+        disconnect_stop_adv();
+        advertising_data_set();
+        advertising_start();
+    }
 }
 
 /**@brief Function for handling BLE_GAP_EVT_CONNECTED events.
@@ -162,13 +139,8 @@ static void on_ble_gap_evt_connected(ble_gap_evt_t const *p_gap_evt) {
         NRF_LOG_INFO("Connected as a central. Should not happen.");
     }
 
-    //If advertising, stop advertising.
+    // If advertising, stop advertising.
     (void)sd_ble_gap_adv_stop(m_adv_handle);
-
-    // Stop advertising LED timer, turn on "connected state" LED
-    err_code = app_timer_stop(m_conn_adv_fast_blink_timer_id);
-    APP_ERROR_CHECK(err_code);
-    bsp_board_led_on(CONN_ADV_CONN_STATE_LED);
 }
 
 /**@brief Function for handling BLE_GAP_EVT_DISCONNECTED events.
@@ -178,12 +150,11 @@ static void on_ble_gap_evt_disconnected(ble_gap_evt_t const *p_gap_evt) {
     m_conn_handle = BLE_CONN_HANDLE_INVALID;
     m_waiting_for_disconnect_evt = false;
 
-    NRF_LOG_DEBUG("Disconnected: reason 0x%x.", p_gap_evt->params.disconnected.reason);
+    NRF_LOG_INFO("Disconnected: reason 0x%x.", p_gap_evt->params.disconnected.reason);
 
-    if (m_app_initiated_disconnect == false) // (If a the app itself (button push) has initiated a disconnect, bsp_evt_handler will start the advertising.)
+    if (m_app_initiated_disconnect == false) // (If the app itself (button push) has initiated a disconnect, bsp_evt_handler will start the advertising.)
     {
         // Start advertising with the current setup.
-        bsp_board_leds_off();
         set_current_adv_params_and_start_advertising();
     }
 }
@@ -303,6 +274,30 @@ static void disconnect_stop_adv(void) {
 static void advertising_data_set(void) {
     ret_code_t ret;
 
+    increase_adv_cnt();
+    // update_time();
+    update_adv_cnt();
+    update_temp();
+    update_vbatt();
+
+    ble_advdata_service_data_t service_data[4];
+
+    service_data[0].service_uuid =  BLE_UUID_BATTERY_SERVICE;
+    service_data[0].data.size = sizeof(vbatt);
+    service_data[0].data.p_data = (uint8_t *)&vbatt;
+
+    service_data[1].service_uuid = BLE_UUID_HEALTH_THERMOMETER_SERVICE;
+    service_data[1].data.size = sizeof(temp);
+    service_data[1].data.p_data = (uint8_t *)&temp;
+
+    service_data[2].service_uuid = 0x1801; // 0x2700 unitless
+    service_data[2].data.size = sizeof(adv_cnt);
+    service_data[2].data.p_data = (uint8_t *)&adv_cnt;
+
+    service_data[3].service_uuid = 0x2703; // time (second) // 0x1847 Device Time
+    service_data[3].data.size = sizeof(sec_cnt);
+    service_data[3].data.p_data = (uint8_t *)&sec_cnt;
+
     ble_gap_adv_params_t adv_params = {
         .properties = {
             .type = BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED,
@@ -321,19 +316,21 @@ static void advertising_data_set(void) {
         .name_type = BLE_ADVDATA_FULL_NAME,
         .flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE,
         .include_appearance = false,
+        .service_data_count = 3,
+        .p_service_data_array = service_data
     };
 
     if (m_adv_scan_phy_selected == SELECTION_1M_PHY) {
         // 1M coded for adv
-        NRF_LOG_INFO("Setting adv params PHY to 1M. ");
+        // NRF_LOG_INFO("Setting adv params PHY to 1M. ");
         adv_params.primary_phy = BLE_GAP_PHY_1MBPS;
         adv_params.secondary_phy = BLE_GAP_PHY_1MBPS;
 
         if (m_adv_scan_type_selected == SELECTION_CONNECTABLE) {
-            NRF_LOG_INFO("Advertising type set to CONNECTABLE_SCANNABLE_UNDIRECTED ");
+            // NRF_LOG_INFO("Advertising type set to CONNECTABLE_SCANNABLE_UNDIRECTED ");
             adv_params.properties.type = BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED;
         } else if (m_adv_scan_type_selected == SELECTION_NON_CONNECTABLE) {
-            NRF_LOG_INFO("Advertising type set to NONCONNECTABLE_SCANNABLE_UNDIRECTED ");
+            // NRF_LOG_INFO("Advertising type set to NONCONNECTABLE_SCANNABLE_UNDIRECTED ");
             adv_params.properties.type = BLE_GAP_ADV_TYPE_NONCONNECTABLE_SCANNABLE_UNDIRECTED;
         }
 
@@ -345,12 +342,12 @@ static void advertising_data_set(void) {
     }
     else if (m_adv_scan_phy_selected == SELECTION_CODED_PHY) {
         // only extended advertising will allow primary phy to be coded
-        NRF_LOG_INFO("Setting adv params phy to coded phy .. ");
+        // NRF_LOG_INFO("Setting adv params phy to coded phy .. ");
         adv_params.primary_phy = BLE_GAP_PHY_CODED;
         adv_params.secondary_phy = BLE_GAP_PHY_CODED;
 
         if (m_adv_scan_type_selected == SELECTION_CONNECTABLE) {
-            NRF_LOG_INFO("Advertising type set to EXTENDED_CONNECTABLE_NONSCANNABLE_UNDIRECTED ");
+            //NRF_LOG_INFO("Advertising type set to EXTENDED_CONNECTABLE_NONSCANNABLE_UNDIRECTED ");
             adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_CONNECTABLE_NONSCANNABLE_UNDIRECTED;
 
             ret = ble_advdata_encode(&adv_data, m_adv_data.adv_data.p_data, &m_adv_data.adv_data.len);
@@ -359,13 +356,13 @@ static void advertising_data_set(void) {
             ret = sd_ble_gap_adv_set_configure(&m_adv_handle, &m_adv_data, &adv_params);
             APP_ERROR_CHECK(ret);
         } else if (m_adv_scan_type_selected == SELECTION_NON_CONNECTABLE) {
-            NRF_LOG_INFO("Advertising type set to EXTENDED_NONCONNECTABLE_SCANNABLE_UNDIRECTED ");
-            adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_NONCONNECTABLE_SCANNABLE_UNDIRECTED;
+            // NRF_LOG_INFO("Advertising type set to EXTENDED_NONCONNECTABLE_SCANNABLE_UNDIRECTED ");
+            adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_NONCONNECTABLE_NONSCANNABLE_UNDIRECTED;
 
-            // ret = ble_advdata_encode(&adv_data, m_adv_data_ext.scan_rsp_data.p_data, &m_adv_data_ext.scan_rsp_data.len);
-            // APP_ERROR_CHECK(ret);
+            ret = ble_advdata_encode(&adv_data, m_adv_data.adv_data.p_data, &m_adv_data.adv_data.len);
+            APP_ERROR_CHECK(ret);
 
-            ret = sd_ble_gap_adv_set_configure(&m_adv_handle, NULL, &adv_params);
+            ret = sd_ble_gap_adv_set_configure(&m_adv_handle, &m_adv_data, &adv_params);
             APP_ERROR_CHECK(ret);
         }
     }
@@ -401,19 +398,6 @@ static void log_init(void) {
  */
 static void timers_init(void) {
     ret_code_t err_code = app_timer_init();
-    APP_ERROR_CHECK(err_code);
-
-    // Creating the timers used to indicate the state/selection mode of the board.
-    err_code = app_timer_create(&m_non_conn_fast_blink_timer_id, APP_TIMER_MODE_REPEATED, non_conn_adv_fast_blink_timeout_handler);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_create(&m_conn_adv_fast_blink_timer_id, APP_TIMER_MODE_REPEATED, conn_adv_fast_blink_timeout_handler);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_create(&m_1Mbps_led_slow_blink_timer_id, APP_TIMER_MODE_REPEATED, led_1Mbps_slow_blink_timeout_handler);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_create(&m_8dBm_led_slow_blink_timer_id, APP_TIMER_MODE_REPEATED, led_8dBm_slow_blink_timeout_handler);
     APP_ERROR_CHECK(err_code);
 
     err_code = app_timer_create(&m_battery_timer_id, APP_TIMER_MODE_REPEATED, advdata_update_handler);
@@ -482,123 +466,6 @@ static void idle_state_handle(void) {
     }
 }
 
-/**@brief Function for setting new output power selection: LEDs start to blink according to the selected state.
- * Note: this function sets the output power/TX power.
- *       The new output power will be set when (re-)starting to scan.
- */
-static void output_power_selection_set(output_power_seclection_t output_power) {
-    ret_code_t err_code;
-    m_output_power_selected = output_power;
-    switch (m_output_power_selected) {
-        case SELECTION_8_dBm:
-            // 8 dBm is the current output power, start blinking LED.
-            bsp_board_led_off(OUTPUT_POWER_SELECTION_LED); // not necessary because the LED should start to blink.
-            err_code = app_timer_start(m_8dBm_led_slow_blink_timer_id, SLOW_BLINK_INTERVAL, NULL);
-            APP_ERROR_CHECK(err_code);
-            break;
-        case SELECTION_0_dBm:
-            // 0 dBm is the current output power, turn on LED.
-            err_code = app_timer_stop(m_8dBm_led_slow_blink_timer_id);
-            APP_ERROR_CHECK(err_code);
-            bsp_board_led_on(OUTPUT_POWER_SELECTION_LED);
-            break;
-    }
-}
-
-/**@brief Function for switching output power/TX power: 0 dBm or 8 dBm.
- * Note:  this function does only set the internal state, it does apply the new setting.
- *        The new output power will be set when (re-)starting to scan.
- */
-static void on_output_power_selection_button(void) {
-    // Change the output power.
-    output_power_seclection_t new_output_power;
-    switch (m_output_power_selected) {
-        case SELECTION_0_dBm: // 0 dBm is the previous output power.
-            // 8 dBm is the current output power, start blinking LED.
-            new_output_power = SELECTION_8_dBm;
-            break;
-        case SELECTION_8_dBm:
-            // 0 dBm is the current output power, turn on LED.
-            new_output_power = SELECTION_0_dBm;
-            break;
-    }
-    output_power_selection_set(new_output_power);
-}
-
-/**@brief Function for setting new phy selection. LEDs start to blink according to the selected state.
- * Note: this function does only set the internal state, it does apply the new setting.
- *       The new phy will be be used when (re-)starting scanning.
- */
-static void phy_selection_set_state(adv_scan_phy_seclection_t new_phy_selection) {
-    ret_code_t err_code;
-    m_adv_scan_phy_selected = new_phy_selection;
-
-    switch (new_phy_selection) {
-        case SELECTION_1M_PHY: // SELECTION_1M_PHY is the current "state".
-            // 1 Mbps is the current state, LED should start blinking.
-            err_code = app_timer_start(m_1Mbps_led_slow_blink_timer_id, SLOW_BLINK_INTERVAL, NULL);
-            APP_ERROR_CHECK(err_code);
-            break;
-        case SELECTION_CODED_PHY:
-            // Coded phy is the current sate, turn on LED.
-            err_code = app_timer_stop(m_1Mbps_led_slow_blink_timer_id);
-            APP_ERROR_CHECK(err_code);
-            bsp_board_led_on(PHY_SELECTION_LED);
-            break;
-    }
-}
-
-/**@brief Function for switching PHY: coded phy or 1 Mbps
- * Note: this function does only set the internal state, it does apply the new setting.
- *       The new phy will be be used when (re-)starting scanning.
- */
-static void on_phy_selection_button(void) {
-    // Change the selected phy.
-    adv_scan_phy_seclection_t new_phy_selection;
-    switch (m_adv_scan_phy_selected) {
-        case SELECTION_CODED_PHY: // SELECTION_CODED_PHY is the previous "state".{
-            // 1 Mbps is the current state, LED should start blinking.
-            new_phy_selection = SELECTION_1M_PHY;
-            break;
-        case SELECTION_1M_PHY:
-            // Coded phy is the current sate, turn on LED.
-            new_phy_selection = SELECTION_CODED_PHY;
-            break;
-    }
-    phy_selection_set_state(new_phy_selection);
-}
-
-/**@brief Function setting the internal advertising state.
- * Note: this function does only set the internal "advertising state", it does not start advertising.
- *       The new advertising mode will be used when (re-)starting to advertise.
- */
-static void on_non_conn_or_conn_adv_selection_state_set(adv_scan_type_seclection_t adv_selection) {
-    ret_code_t err_code;
-
-    m_adv_scan_type_selected = adv_selection;
-    bsp_board_led_off(CONN_ADV_CONN_STATE_LED);
-    switch (adv_selection) {
-        case SELECTION_NON_CONNECTABLE:
-            // Current state is non-connectable advertising. Start blinking associated LED.
-            err_code = app_timer_stop(m_conn_adv_fast_blink_timer_id);
-            APP_ERROR_CHECK(err_code);
-            bsp_board_led_off(CONN_ADV_CONN_STATE_LED);
-
-            err_code = app_timer_start(m_non_conn_fast_blink_timer_id, FAST_BLINK_INTERVAL, NULL);
-            APP_ERROR_CHECK(err_code);
-            break;
-        case SELECTION_CONNECTABLE: 
-            // Current state is connectable advertising. Start blinking associated LED.
-            err_code = app_timer_stop(m_non_conn_fast_blink_timer_id);
-            APP_ERROR_CHECK(err_code);
-            bsp_board_led_off(NON_CONN_ADV_LED);
-
-            err_code = app_timer_start(m_conn_adv_fast_blink_timer_id, FAST_BLINK_INTERVAL, NULL);
-            APP_ERROR_CHECK(err_code);
-            break;
-    }
-}
-
 /**@brief Function for switching between "non-connectable and connectable advertising" selection.
  * Note: this function does only set the internal "advertising state", it does not start advertising.
  *       The new advertising mode will be used when (re-)starting to advertise.
@@ -617,7 +484,8 @@ static void on_non_conn_or_conn_adv_selection(void) {
             new_adv_selection = SELECTION_CONNECTABLE;
             break;
     }
-    on_non_conn_or_conn_adv_selection_state_set(new_adv_selection);
+    m_adv_scan_type_selected = new_adv_selection;
+    NRF_LOG_INFO("Mode changed to: %d", m_adv_scan_type_selected);
 }
 
 /**@brief Function for handling events from the button handler module.
@@ -628,26 +496,18 @@ static void on_non_conn_or_conn_adv_selection(void) {
 void bsp_evt_handler(bsp_event_t event) {
     ret_code_t err_code;
 
-    if (event != BUTTON_NOT_IN_USE_EVENT) {
-        // Set the correct parameters, depending on the button pushed.
-        switch (event) {
-            case PHY_SELECTION_BUTTON_EVENT:
-                on_phy_selection_button();
-                break;
-            case OUTPUT_POWER_SELECTION_BUTTON_EVENT:
-                on_output_power_selection_button();
-                break;
-            case NON_CONN_OR_CONN_ADV_BUTTON_EVENT:
-                on_non_conn_or_conn_adv_selection();
-                break;
-            default:
-                break;
-        }
-
-        disconnect_stop_adv();
-        advertising_data_set();
-        advertising_start();
+    // Set the correct parameters, depending on the button pushed.
+    switch (event) {
+        case NON_CONN_OR_CONN_ADV_BUTTON_EVENT:
+            on_non_conn_or_conn_adv_selection();
+            break;
+        default:
+            break;
     }
+
+    disconnect_stop_adv();
+    advertising_data_set();
+    advertising_start();
 }
 
 /**@brief Function for initializing buttons and leds.
@@ -662,82 +522,8 @@ static void buttons_leds_init(void) {
 /**@brief Function for starting advertising with the current selections of output power, phy, and connectable or non-connectable advertising.
  */
 static void set_current_adv_params_and_start_advertising(void) {
-
-    phy_selection_set_state(m_adv_scan_phy_selected);
-    on_non_conn_or_conn_adv_selection_state_set(m_adv_scan_type_selected);
-    output_power_selection_set(m_output_power_selected);
-
     advertising_data_set();
     advertising_start();
-}
-
-/**@brief Function for initializing the Advertising functionality.
- *
- * @details Encodes the required advertising data and passes it to the stack.
- *          Also builds a structure to be passed to the stack when starting advertising.
- */
-static void advdata_update(void) {
-    ret_code_t ret;
-
-    increase_adv_cnt();
-    // update_time();
-    update_adv_cnt();
-    update_temp();
-    update_vbatt();
-
-    ble_advdata_service_data_t service_data[4];
-
-    service_data[0].service_uuid =  BLE_UUID_BATTERY_SERVICE;
-    service_data[0].data.size = sizeof(vbatt);
-    service_data[0].data.p_data = (uint8_t *)&vbatt;
-
-    service_data[1].service_uuid = BLE_UUID_HEALTH_THERMOMETER_SERVICE;
-    service_data[1].data.size = sizeof(temp);
-    service_data[1].data.p_data = (uint8_t *)&temp;
-
-    service_data[2].service_uuid = 0x1801; // 0x2700 unitless
-    service_data[2].data.size = sizeof(adv_cnt);
-    service_data[2].data.p_data = (uint8_t *)&adv_cnt;
-
-    service_data[3].service_uuid = 0x2703; // time (second) // 0x1847 Device Time
-    service_data[3].data.size = sizeof(sec_cnt);
-    service_data[3].data.p_data = (uint8_t *)&sec_cnt;
-
-    ble_gap_adv_params_t adv_params = {
-        .properties = {
-            .type = BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED,
-        },
-        .p_peer_addr = NULL,
-        .filter_policy = BLE_GAP_ADV_FP_ANY,
-        .interval = ADV_INTERVAL,
-        .duration = 0,
-
-        .primary_phy = BLE_GAP_PHY_1MBPS, // Must be changed to connect in long range. (BLE_GAP_PHY_CODED)
-        .secondary_phy = BLE_GAP_PHY_1MBPS,
-        .scan_req_notification = 1,
-    };
-
-    ble_advdata_t const adv_data = {
-        .name_type = BLE_ADVDATA_FULL_NAME,
-        .flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE,
-        .include_appearance = false,
-        .service_data_count = 3,
-        .p_service_data_array = service_data
-    };
-
-    m_adv_data.adv_data.len = BLE_GAP_ADV_SET_DATA_SIZE_MAX;
-
-    // only extended advertising will allow primary phy to be coded
-    adv_params.primary_phy = BLE_GAP_PHY_CODED;
-    adv_params.secondary_phy = BLE_GAP_PHY_CODED;
-
-    adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_CONNECTABLE_NONSCANNABLE_UNDIRECTED;
-
-    ret = ble_advdata_encode(&adv_data, m_adv_data.adv_data.p_data, &m_adv_data.adv_data.len);
-    APP_ERROR_CHECK(ret);
-
-    ret = sd_ble_gap_adv_set_configure(&m_adv_handle, &m_adv_data, &adv_params);
-    APP_ERROR_CHECK(ret);
 }
 
 /**@brief Function for updating the VBATT field of TLM*/
@@ -782,6 +568,7 @@ static void update_time(void)
 static void increase_adv_cnt(void)
 {
     m_le_adv_cnt++;
+    NRF_LOG_INFO("Counter: %d, (as time: %02d:%02d:%02d", m_le_adv_cnt, m_le_adv_cnt/3600, (m_le_adv_cnt/60)%60, m_le_adv_cnt%60);
 }
 
 static void update_adv_cnt(void)
