@@ -15,10 +15,14 @@
 #define NON_CONN_OR_CONN_ADV_BUTTON BSP_BUTTON_0
 #define NON_CONN_OR_CONN_ADV_BUTTON_EVENT BSP_EVENT_KEY_0
 
-#define UPDATE_ADV_INTERVAL APP_TIMER_TICKS(1*1000)
+#define UPDATE_ADV_INTERVAL APP_TIMER_TICKS(1*1000) // 1s timer to update sensor values and count time
 
 #define APP_BLE_CONN_CFG_TAG 1  /**< A tag that refers to the BLE stack configuration. */
 #define APP_BLE_OBSERVER_PRIO 3 /**< Application's BLE observer priority. You shouldn't need to modify this value. */
+
+#define CUT_OFF_VOLTAGE_3000 3000 // Common value for CR2450 and other batteries
+#define CUT_OFF_VOLTAGE_LIPO 3600
+#define CUT_OFF_VOLTAGE CUT_OFF_VOLTAGE_3000
 
 // Type holding the two output power options for this application.
 typedef enum {
@@ -38,14 +42,27 @@ typedef enum {
     SELECTION_CODED_PHY
 } adv_scan_phy_seclection_t;
 
+typedef struct
+{
+    uint8_t vbatt[1];    // Variable to hold voltage reading
+    uint8_t temp[2];     // variable to hold temp reading
+    uint8_t sec_cnt[4];  // Time since power-on or reboot.
+} custom_adv_data_t;
+
+typedef struct
+{
+    uint16_t vbatt;      // Variable to hold voltage reading
+    int32_t temp;        // variable to hold temp reading
+    uint32_t le_sec_cnt; // Time since power-on or reboot.
+} custom_raw_adv_data_t;
+
 
 static void advdata_update(void);
 static void set_current_adv_params_and_start_advertising(void);
 static void update_vbatt(void);
 static void update_temp(void);
 static void update_time(void);
-static void increase_adv_cnt(void);
-static void update_adv_cnt(void);
+static void increase_sec_cnt(void);
 static void disconnect_stop_adv(void);
 static void advertising_start(void);
 static void advertising_data_set(void);

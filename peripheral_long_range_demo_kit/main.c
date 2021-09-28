@@ -56,12 +56,12 @@
 #include "nrf.h"
 #include "nrf_gpio.h"
 #include "nrf_pwr_mgmt.h"
+#include "nrf_power.h"
 #include "nrf_sdh.h"
 #include "nrf_sdh_ble.h"
 #include "sdk_config.h"
 
 #include "battery_voltage_saadc.h"
-#include "stopwatch.h"
 #include "main.h"
 
 #include "nrf_log.h"
@@ -82,14 +82,8 @@ static bool m_waiting_for_disconnect_evt = false;                               
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; /**< Handle of the current BLE connection .*/
 static uint8_t m_gap_role = BLE_GAP_ROLE_INVALID;        /**< BLE role for this connection, see @ref BLE_GAP_ROLES */
 
-static uint32_t m_le_adv_cnt;
-static uint8_t  m_time_sec_sw_id;
-static uint8_t  m_tlm_refresh_sw_id;
-
-static int8_t vbatt[1];    // Variable to hold voltage reading
-static int8_t temp[2];     // variable to hold temp reading
-static int8_t adv_cnt[4];  //!< Advertising PDU count.
-static int8_t sec_cnt[4];  //!< Time since power-on or reboot.
+static custom_raw_adv_data_t m_custom_raw_adv_data; // Variable to hold voltage, temperature and time since start
+static custom_adv_data_t m_custom_adv_data; // Variable to hold voltage, temperature and time since start
 
 /**@brief Struct that contains pointers to the encoded advertising data. */
 static ble_gap_adv_data_t m_adv_data = {
@@ -113,6 +107,22 @@ static ble_gap_conn_params_t m_conn_param = {
 
 static void advdata_update_handler(void *p_context) {
     UNUSED_PARAMETER(p_context);
+
+    increase_sec_cnt();
+    update_temp();
+    update_vbatt();
+
+    NRF_LOG_INFO("Counter: %d, Voltage: %d.%03d, Temperature: %d.%02d", 
+        //m_custom_raw_adv_data.le_sec_cnt / 3600, 
+        //(m_custom_raw_adv_data.le_sec_cnt / 60) % 60, 
+        //m_custom_raw_adv_data.le_sec_cnt % 60,
+        m_custom_raw_adv_data.le_sec_cnt, 
+        m_custom_raw_adv_data.vbatt / 1000,
+        m_custom_raw_adv_data.vbatt % 1000,
+        m_custom_raw_adv_data.temp / 4,
+        (m_custom_raw_adv_data.temp % 4) * 25
+   );
+
     if (m_conn_handle == BLE_CONN_HANDLE_INVALID) {
         disconnect_stop_adv();
         advertising_data_set();
@@ -274,29 +284,19 @@ static void disconnect_stop_adv(void) {
 static void advertising_data_set(void) {
     ret_code_t ret;
 
-    increase_adv_cnt();
-    // update_time();
-    update_adv_cnt();
-    update_temp();
-    update_vbatt();
-
-    ble_advdata_service_data_t service_data[4];
+    ble_advdata_service_data_t service_data[3];
 
     service_data[0].service_uuid =  BLE_UUID_BATTERY_SERVICE;
-    service_data[0].data.size = sizeof(vbatt);
-    service_data[0].data.p_data = (uint8_t *)&vbatt;
+    service_data[0].data.size = sizeof(m_custom_adv_data.vbatt);
+    service_data[0].data.p_data = (uint8_t *)&m_custom_adv_data.vbatt;
 
     service_data[1].service_uuid = BLE_UUID_HEALTH_THERMOMETER_SERVICE;
-    service_data[1].data.size = sizeof(temp);
-    service_data[1].data.p_data = (uint8_t *)&temp;
+    service_data[1].data.size = sizeof(m_custom_adv_data.temp);
+    service_data[1].data.p_data = (uint8_t *)&m_custom_adv_data.temp;
 
-    service_data[2].service_uuid = 0x1801; // 0x2700 unitless
-    service_data[2].data.size = sizeof(adv_cnt);
-    service_data[2].data.p_data = (uint8_t *)&adv_cnt;
-
-    service_data[3].service_uuid = 0x2703; // time (second) // 0x1847 Device Time
-    service_data[3].data.size = sizeof(sec_cnt);
-    service_data[3].data.p_data = (uint8_t *)&sec_cnt;
+    service_data[2].service_uuid = 0x1801;
+    service_data[2].data.size = sizeof(m_custom_adv_data.sec_cnt);
+    service_data[2].data.p_data = (uint8_t *)&m_custom_adv_data.sec_cnt;
 
     ble_gap_adv_params_t adv_params = {
         .properties = {
@@ -333,39 +333,27 @@ static void advertising_data_set(void) {
             // NRF_LOG_INFO("Advertising type set to NONCONNECTABLE_SCANNABLE_UNDIRECTED ");
             adv_params.properties.type = BLE_GAP_ADV_TYPE_NONCONNECTABLE_SCANNABLE_UNDIRECTED;
         }
-
-        ret = ble_advdata_encode(&adv_data, m_adv_data.adv_data.p_data, &m_adv_data.adv_data.len);
-        APP_ERROR_CHECK(ret);
-
-        ret = sd_ble_gap_adv_set_configure(&m_adv_handle, &m_adv_data, &adv_params);
-        APP_ERROR_CHECK(ret);
     }
     else if (m_adv_scan_phy_selected == SELECTION_CODED_PHY) {
         // only extended advertising will allow primary phy to be coded
         // NRF_LOG_INFO("Setting adv params phy to coded phy .. ");
-        adv_params.primary_phy = BLE_GAP_PHY_CODED;
+        adv_params.primary_phy  = BLE_GAP_PHY_CODED;
         adv_params.secondary_phy = BLE_GAP_PHY_CODED;
 
         if (m_adv_scan_type_selected == SELECTION_CONNECTABLE) {
             //NRF_LOG_INFO("Advertising type set to EXTENDED_CONNECTABLE_NONSCANNABLE_UNDIRECTED ");
             adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_CONNECTABLE_NONSCANNABLE_UNDIRECTED;
-
-            ret = ble_advdata_encode(&adv_data, m_adv_data.adv_data.p_data, &m_adv_data.adv_data.len);
-            APP_ERROR_CHECK(ret);
-
-            ret = sd_ble_gap_adv_set_configure(&m_adv_handle, &m_adv_data, &adv_params);
-            APP_ERROR_CHECK(ret);
         } else if (m_adv_scan_type_selected == SELECTION_NON_CONNECTABLE) {
-            // NRF_LOG_INFO("Advertising type set to EXTENDED_NONCONNECTABLE_SCANNABLE_UNDIRECTED ");
+            // NRF_LOG_INFO("Advertising type set to EXTENDED_NONCONNECTABLE_NONSCANNABLE_UNDIRECTED ");
             adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_NONCONNECTABLE_NONSCANNABLE_UNDIRECTED;
-
-            ret = ble_advdata_encode(&adv_data, m_adv_data.adv_data.p_data, &m_adv_data.adv_data.len);
-            APP_ERROR_CHECK(ret);
-
-            ret = sd_ble_gap_adv_set_configure(&m_adv_handle, &m_adv_data, &adv_params);
-            APP_ERROR_CHECK(ret);
         }
     }
+
+    ret = ble_advdata_encode(&adv_data, m_adv_data.adv_data.p_data, &m_adv_data.adv_data.len);
+    APP_ERROR_CHECK(ret);
+
+    ret = sd_ble_gap_adv_set_configure(&m_adv_handle, &m_adv_data, &adv_params);
+    APP_ERROR_CHECK(ret);
 }
 
 /**@brief Function for starting advertising. */
@@ -386,7 +374,10 @@ static void advertising_start(void) {
 /**@brief Function for initializing the log module.
  */
 static void log_init(void) {
-    ret_code_t err_code = NRF_LOG_INIT(NULL);
+    uint32_t log_timestamp_func(void) {
+        return m_custom_raw_adv_data.le_sec_cnt;
+    }
+    ret_code_t err_code = NRF_LOG_INIT(log_timestamp_func, 1); // Counter is incremented at 1Hz rate
     APP_ERROR_CHECK(err_code);
 
     NRF_LOG_DEFAULT_BACKENDS_INIT();
@@ -528,67 +519,46 @@ static void set_current_adv_params_and_start_advertising(void) {
 
 /**@brief Function for updating the VBATT field of TLM*/
 static void update_vbatt(void) {
-    uint16_t vbatt_tmp;              // Variable to hold voltage reading
-    battery_voltage_get(&vbatt_tmp); // Get new battery voltage
+    battery_voltage_get(&m_custom_raw_adv_data.vbatt); // Get new battery voltage
+    m_custom_adv_data.vbatt[0] = (uint8_t)(m_custom_raw_adv_data.vbatt/100); // 1V = 10
 
-    NRF_LOG_INFO("Voltage: %d", vbatt_tmp);
-    vbatt[0] = (uint8_t)(vbatt_tmp/100); // 1V = 10
-    //vbatt[0] = (uint8_t)(vbatt_tmp >> 8);
-    //vbatt[1] = (uint8_t)vbatt_tmp;
+    if (m_custom_raw_adv_data.vbatt < CUT_OFF_VOLTAGE) {
+        NRF_LOG_ERROR("Cut-off voltage reached (%d), going to sleep", m_custom_raw_adv_data.vbatt);
+        nrf_power_system_off();
+    }
 }
 
 /**@brief Function for updating the TEMP field of TLM*/
-static void update_temp(void)
-{
-    int32_t temperature;                                        // variable to hold temp reading
-    (void)sd_temp_get(&temperature);                            // get new temperature
-    NRF_LOG_INFO("Temperature: %d", temperature);
-    int16_t temp_new = (int16_t) temperature;                   // convert from int32_t to int16_t
+static void update_temp(void) {
+    (void)sd_temp_get(&m_custom_raw_adv_data.temp);                            // get new temperature
+    int16_t temp_new = (int16_t) m_custom_raw_adv_data.temp;                   // convert from int32_t to int16_t
     //temp[0] = (uint8_t)((temp_new >> 2) & 0xFFUL); // Right-shift by two to remove decimal part
     //temp[1] = (uint8_t)((temp_new << 6) & 0xFFUL); // Left-shift 6 to get fractional part with 0.25 degrees C resolution
 
     temp_new = temp_new * 25; // temp in 10bits converted to 0.01C units (100*t/4) 
-    temp[1] = (uint8_t)(temp_new >> 8);
-    temp[0] = (uint8_t)temp_new;
+    m_custom_adv_data.temp[1] = (uint8_t)(temp_new >> 8);
+    m_custom_adv_data.temp[0] = (uint8_t)temp_new;
 }
 
-/**@brief Function for updating the ADV_SEC field of TLM*/
-static void update_time(void)
+static void increase_sec_cnt(void)
 {
-    static uint32_t time_total_100_ms = 0;
-    uint32_t        be_time_100_ms; // Big endian version of 0.1 second counter.
+    m_custom_raw_adv_data.le_sec_cnt++;
 
-    time_total_100_ms += es_stopwatch_check(m_time_sec_sw_id);
-
-    be_time_100_ms = BYTES_REVERSE_32BIT(time_total_100_ms);
-
-    memcpy(sec_cnt, &be_time_100_ms, 4);
+    uint32_t be_sec_cnt = BYTES_REVERSE_32BIT(m_custom_raw_adv_data.le_sec_cnt);
+    memcpy(m_custom_adv_data.sec_cnt, (uint8_t *)(&be_sec_cnt), 4);
 }
-
-static void increase_adv_cnt(void)
-{
-    m_le_adv_cnt++;
-    NRF_LOG_INFO("Counter: %d, (as time: %02d:%02d:%02d", m_le_adv_cnt, m_le_adv_cnt/3600, (m_le_adv_cnt/60)%60, m_le_adv_cnt%60);
-}
-
-static void update_adv_cnt(void)
-{
-    uint32_t be_adv_cnt = BYTES_REVERSE_32BIT(m_le_adv_cnt);
-    memcpy(adv_cnt, (uint8_t *)(&be_adv_cnt), 4);
-}
-
 
 static void update_vbatt_init(void) {
     uint32_t err_code;
     err_code = app_timer_start(m_battery_timer_id, UPDATE_ADV_INTERVAL, NULL);
     APP_ERROR_CHECK(err_code);
-
-    // es_stopwatch_init();
 }
 
 int main(void) {
     // Initialize.
     log_init();
+
+    nrf_power_dcdcen_set(true);
 
     timers_init();
     buttons_leds_init();
