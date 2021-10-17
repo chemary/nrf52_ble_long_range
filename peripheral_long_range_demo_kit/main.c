@@ -71,11 +71,15 @@
 APP_TIMER_DEF(m_battery_timer_id);              /**< Battery timer. */
 
 static uint8_t m_adv_handle = BLE_GAP_ADV_SET_HANDLE_NOT_SET; /**< Advertising handle used to identify an advertising set. */
-static uint8_t m_enc_advdata[BLE_GAP_ADV_SET_DATA_SIZE_MAX];  /**< Buffer for storing an encoded advertising set. */
+static uint8_t m_enc_advdata[2][BLE_GAP_ADV_SET_DATA_SIZE_MAX];  /**< Buffer for storing an encoded advertising set
+                                                                      We use 2 because the one in use can not be modified.*/
+
+static uint32_t adv_interval = ADV_INTERVAL; // Advertising interval (in units of 0.625 ms) 
 
 static adv_scan_type_seclection_t m_adv_scan_type_selected = SELECTION_CONNECTABLE; /**< Global variable holding the current scan selection mode. */
 static adv_scan_phy_seclection_t m_adv_scan_phy_selected = SELECTION_CODED_PHY;     /**< Global variable holding the current phy selection. */
 static output_power_seclection_t m_output_power_selected = SELECTION_8_dBm;         /**< Global variable holding the current output power selection. */
+static power_mode_t m_power_mode = POWER_MODE_NORMAL;                                /**< Global variable holding the current power mode. */
 static bool m_app_initiated_disconnect = false;                                     //The application has initiated disconnect. Used to "tell" on_ble_gap_evt_disconnected() to not start advertising.
 static bool m_waiting_for_disconnect_evt = false;                                   // Disconnect is initiated. The application has to wait for BLE_GAP_EVT_DISCONNECTED before proceeding.
 
@@ -88,7 +92,7 @@ static custom_adv_data_t m_custom_adv_data; // Variable to hold voltage, tempera
 /**@brief Struct that contains pointers to the encoded advertising data. */
 static ble_gap_adv_data_t m_adv_data = {
     .adv_data = {
-        .p_data = m_enc_advdata,
+        .p_data = m_enc_advdata[0],
         .len = BLE_GAP_ADV_SET_DATA_SIZE_MAX
     },
     .scan_rsp_data = {
@@ -109,13 +113,16 @@ static void advdata_update_handler(void *p_context) {
     UNUSED_PARAMETER(p_context);
 
     increase_sec_cnt();
+
+    // Update batt and temp less often in low power mode
+    if (m_power_mode == POWER_MODE_LOW_BATT && m_custom_raw_adv_data.le_sec_cnt % 10 != 0) {
+        return;
+    }
+
     update_temp();
     update_vbatt();
 
     NRF_LOG_INFO("Counter: %d, Voltage: %d.%03d, Temperature: %d.%02d", 
-        //m_custom_raw_adv_data.le_sec_cnt / 3600, 
-        //(m_custom_raw_adv_data.le_sec_cnt / 60) % 60, 
-        //m_custom_raw_adv_data.le_sec_cnt % 60,
         m_custom_raw_adv_data.le_sec_cnt, 
         m_custom_raw_adv_data.vbatt / 1000,
         m_custom_raw_adv_data.vbatt % 1000,
@@ -124,9 +131,7 @@ static void advdata_update_handler(void *p_context) {
    );
 
     if (m_conn_handle == BLE_CONN_HANDLE_INVALID) {
-        disconnect_stop_adv();
-        advertising_data_set();
-        advertising_start();
+        advertising_data_set(false);
     }
 }
 
@@ -281,7 +286,7 @@ static void disconnect_stop_adv(void) {
 }
 
 /**@brief Function for setting up advertising data. */
-static void advertising_data_set(void) {
+static void advertising_data_set(bool set_adv_params) {
     ret_code_t ret;
 
     ble_advdata_service_data_t service_data[3];
@@ -298,26 +303,41 @@ static void advertising_data_set(void) {
     service_data[2].data.size = sizeof(m_custom_adv_data.sec_cnt);
     service_data[2].data.p_data = (uint8_t *)&m_custom_adv_data.sec_cnt;
 
-    ble_gap_adv_params_t adv_params = {
-        .properties = {
-            .type = BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED,
-        },
-        .p_peer_addr = NULL,
-        .filter_policy = BLE_GAP_ADV_FP_ANY,
-        .interval = ADV_INTERVAL,
-        .duration = 0,
-
-        .primary_phy = BLE_GAP_PHY_1MBPS, // Must be changed to connect in long range. (BLE_GAP_PHY_CODED)
-        .secondary_phy = BLE_GAP_PHY_1MBPS,
-        .scan_req_notification = 1,
-    };
-
     ble_advdata_t const adv_data = {
         .name_type = BLE_ADVDATA_FULL_NAME,
         .flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE,
         .include_appearance = false,
         .service_data_count = 3,
         .p_service_data_array = service_data
+    };
+
+    /* swap adv data buffer - from API doc: "In order to update advertising 
+    data while advertising, new advertising buffers must be provided"*/
+    m_adv_data.adv_data.p_data = (m_adv_data.adv_data.p_data == m_enc_advdata[0])
+                                ? m_enc_advdata[1] : m_enc_advdata[0];
+
+    ret = ble_advdata_encode(&adv_data, m_adv_data.adv_data.p_data, &m_adv_data.adv_data.len);
+    APP_ERROR_CHECK(ret);
+
+    if (!set_adv_params) {
+        // Only update advertising data while advertising
+        ret = sd_ble_gap_adv_set_configure(&m_adv_handle, &m_adv_data, NULL);
+        APP_ERROR_CHECK(ret);
+        return;
+    }
+
+    ble_gap_adv_params_t adv_params = {
+        .properties = {
+            .type = BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED,
+        },
+        .p_peer_addr = NULL,
+        .filter_policy = BLE_GAP_ADV_FP_ANY,
+        .interval = adv_interval,
+        .duration = 0,
+
+        .primary_phy = BLE_GAP_PHY_1MBPS, // Must be changed to connect in long range. (BLE_GAP_PHY_CODED)
+        .secondary_phy = BLE_GAP_PHY_1MBPS,
+        .scan_req_notification = 1,
     };
 
     if (m_adv_scan_phy_selected == SELECTION_1M_PHY) {
@@ -348,9 +368,6 @@ static void advertising_data_set(void) {
             adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_NONCONNECTABLE_NONSCANNABLE_UNDIRECTED;
         }
     }
-
-    ret = ble_advdata_encode(&adv_data, m_adv_data.adv_data.p_data, &m_adv_data.adv_data.len);
-    APP_ERROR_CHECK(ret);
 
     ret = sd_ble_gap_adv_set_configure(&m_adv_handle, &m_adv_data, &adv_params);
     APP_ERROR_CHECK(ret);
@@ -497,7 +514,7 @@ void bsp_evt_handler(bsp_event_t event) {
     }
 
     disconnect_stop_adv();
-    advertising_data_set();
+    advertising_data_set(true);
     advertising_start();
 }
 
@@ -513,7 +530,7 @@ static void buttons_leds_init(void) {
 /**@brief Function for starting advertising with the current selections of output power, phy, and connectable or non-connectable advertising.
  */
 static void set_current_adv_params_and_start_advertising(void) {
-    advertising_data_set();
+    advertising_data_set(true);
     advertising_start();
 }
 
@@ -522,9 +539,19 @@ static void update_vbatt(void) {
     battery_voltage_get(&m_custom_raw_adv_data.vbatt); // Get new battery voltage
     m_custom_adv_data.vbatt[0] = (uint8_t)(m_custom_raw_adv_data.vbatt/100); // 1V = 10
 
-    if (m_custom_raw_adv_data.vbatt < CUT_OFF_VOLTAGE) {
+    if (m_custom_raw_adv_data.vbatt < LOW_POWER_VOLTAGE && m_power_mode == POWER_MODE_NORMAL) {
+        NRF_LOG_ERROR("Low voltage (%d), set slow advertisement", m_custom_raw_adv_data.vbatt);
+        m_power_mode = POWER_MODE_LOW_BATT;
+        adv_interval = ADV_INTERVAL_SLOW;
+        disconnect_stop_adv();
+        advertising_data_set(true);
+        advertising_start();
+    }
+
+    if (m_custom_raw_adv_data.vbatt < CUT_OFF_VOLTAGE && m_custom_raw_adv_data.le_sec_cnt > CUT_OFF_VOLTAGE_POWER_UP_DELAY) {
         NRF_LOG_ERROR("Cut-off voltage reached (%d), going to sleep", m_custom_raw_adv_data.vbatt);
         nrf_power_system_off();
+        while(1);
     }
 }
 
@@ -556,12 +583,14 @@ static void update_vbatt_init(void) {
 
 int main(void) {
     // Initialize.
+    #if NRF_LOG_ENABLED
     log_init();
-
+    #endif
+ 
     nrf_power_dcdcen_set(true);
 
     timers_init();
-    buttons_leds_init();
+    // buttons_leds_init();
 
     power_management_init();
     ble_stack_init();

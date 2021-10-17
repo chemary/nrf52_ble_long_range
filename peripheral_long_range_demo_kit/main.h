@@ -24,6 +24,10 @@
 #define CUT_OFF_VOLTAGE_LIPO 3600
 #define CUT_OFF_VOLTAGE CUT_OFF_VOLTAGE_3000
 
+#define LOW_POWER_VOLTAGE 3400 // Enter low power mode
+
+#define CUT_OFF_VOLTAGE_POWER_UP_DELAY 30 // Don't shut down just after power on
+
 // Type holding the two output power options for this application.
 typedef enum {
     SELECTION_0_dBm = 0,
@@ -42,6 +46,12 @@ typedef enum {
     SELECTION_CODED_PHY
 } adv_scan_phy_seclection_t;
 
+// Type holding the power modes modes.
+typedef enum {
+    POWER_MODE_NORMAL = 0,
+    POWER_MODE_LOW_BATT
+} power_mode_t;
+
 typedef struct
 {
     uint8_t vbatt[1];    // Variable to hold voltage reading
@@ -57,6 +67,7 @@ typedef struct
 } custom_raw_adv_data_t;
 
 
+static void log_init(void);
 static void advdata_update(void);
 static void set_current_adv_params_and_start_advertising(void);
 static void update_vbatt(void);
@@ -65,4 +76,4 @@ static void update_time(void);
 static void increase_sec_cnt(void);
 static void disconnect_stop_adv(void);
 static void advertising_start(void);
-static void advertising_data_set(void);
+static void advertising_data_set(bool set_adv_params);
