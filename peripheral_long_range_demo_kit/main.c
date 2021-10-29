@@ -537,12 +537,17 @@ static void set_current_adv_params_and_start_advertising(void) {
 /**@brief Function for updating the VBATT field of TLM*/
 static void update_vbatt(void) {
     battery_voltage_get(&m_custom_raw_adv_data.vbatt); // Get new battery voltage
-    m_custom_adv_data.vbatt[0] = (uint8_t)(m_custom_raw_adv_data.vbatt/100); // 1V = 10
+    if (m_custom_raw_adv_data.vbatt > 3500) {
+        m_custom_adv_data.vbatt[0] = 20 + (uint8_t)((m_custom_raw_adv_data.vbatt-3500)/8.75); // 4.2V = 100%, 3.5V = 20%
+    } else {
+        m_custom_adv_data.vbatt[0] = (uint8_t)((m_custom_raw_adv_data.vbatt-3000)/25); // 3.5V = 20%, 3.0V = 0%
+    }
 
     if (m_custom_raw_adv_data.vbatt < LOW_POWER_VOLTAGE && m_power_mode == POWER_MODE_NORMAL) {
         NRF_LOG_ERROR("Low voltage (%d), set slow advertisement", m_custom_raw_adv_data.vbatt);
         m_power_mode = POWER_MODE_LOW_BATT;
         adv_interval = ADV_INTERVAL_SLOW;
+        m_output_power_selected = SELECTION_0_dBm;
         disconnect_stop_adv();
         advertising_data_set(true);
         advertising_start();
