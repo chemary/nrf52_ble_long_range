@@ -86,7 +86,7 @@ static bool m_waiting_for_disconnect_evt = false;                               
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; /**< Handle of the current BLE connection .*/
 static uint8_t m_gap_role = BLE_GAP_ROLE_INVALID;        /**< BLE role for this connection, see @ref BLE_GAP_ROLES */
 
-static custom_raw_adv_data_t m_custom_raw_adv_data; // Variable to hold voltage, temperature and time since start
+static sensors_data_t m_sensors_data; // Variable to hold voltage, temperature and time since start
 static custom_adv_data_t m_custom_adv_data; // Variable to hold voltage, temperature and time since start
 
 /**@brief Struct that contains pointers to the encoded advertising data. */
@@ -115,7 +115,7 @@ static void advdata_update_handler(void *p_context) {
     increase_sec_cnt();
 
     // Update batt and temp less often in low power mode
-    if (m_power_mode == POWER_MODE_LOW_BATT && m_custom_raw_adv_data.le_sec_cnt % 10 != 0) {
+    if (m_power_mode == POWER_MODE_LOW_BATT && m_sensors_data.le_sec_cnt % 6 != 0) {
         return;
     }
 
@@ -123,11 +123,11 @@ static void advdata_update_handler(void *p_context) {
     update_vbatt();
 
     NRF_LOG_INFO("Counter: %d, Voltage: %d.%03d, Temperature: %d.%02d", 
-        m_custom_raw_adv_data.le_sec_cnt, 
-        m_custom_raw_adv_data.vbatt / 1000,
-        m_custom_raw_adv_data.vbatt % 1000,
-        m_custom_raw_adv_data.temp / 4,
-        (m_custom_raw_adv_data.temp % 4) * 25
+        m_sensors_data.le_sec_cnt, 
+        m_sensors_data.vbatt / 1000,
+        m_sensors_data.vbatt % 1000,
+        m_sensors_data.temp / 4,
+        (m_sensors_data.temp % 4) * 25
    );
 
     if (m_conn_handle == BLE_CONN_HANDLE_INVALID) {
@@ -392,7 +392,7 @@ static void advertising_start(void) {
  */
 static void log_init(void) {
     uint32_t log_timestamp_func(void) {
-        return m_custom_raw_adv_data.le_sec_cnt;
+        return m_sensors_data.le_sec_cnt;
     }
     ret_code_t err_code = NRF_LOG_INIT(log_timestamp_func, 1); // Counter is incremented at 1Hz rate
     APP_ERROR_CHECK(err_code);
@@ -536,47 +536,68 @@ static void set_current_adv_params_and_start_advertising(void) {
 
 /**@brief Function for updating the VBATT field of TLM*/
 static void update_vbatt(void) {
-    battery_voltage_get(&m_custom_raw_adv_data.vbatt); // Get new battery voltage
-    if (m_custom_raw_adv_data.vbatt > 3500) {
-        m_custom_adv_data.vbatt[0] = 20 + (uint8_t)((m_custom_raw_adv_data.vbatt-3500)/8.75); // 4.2V = 100%, 3.5V = 20%
-    } else {
-        m_custom_adv_data.vbatt[0] = (uint8_t)((m_custom_raw_adv_data.vbatt-3000)/25); // 3.5V = 20%, 3.0V = 0%
-    }
+    uint16_t vbatt;
+    battery_voltage_get(&vbatt); // Get new battery voltage
 
-    if (m_custom_raw_adv_data.vbatt < LOW_POWER_VOLTAGE && m_power_mode == POWER_MODE_NORMAL) {
-        NRF_LOG_ERROR("Low voltage (%d), set slow advertisement", m_custom_raw_adv_data.vbatt);
+    if (vbatt < LOW_POWER_VOLTAGE && m_power_mode == POWER_MODE_NORMAL) {
+        NRF_LOG_ERROR("Low voltage (%d), set slow advertisement", vbatt);
         m_power_mode = POWER_MODE_LOW_BATT;
         adv_interval = ADV_INTERVAL_SLOW;
-        m_output_power_selected = SELECTION_0_dBm;
+        // m_output_power_selected = SELECTION_0_dBm;
         disconnect_stop_adv();
         advertising_data_set(true);
         advertising_start();
     }
 
-    if (m_custom_raw_adv_data.vbatt < CUT_OFF_VOLTAGE && m_custom_raw_adv_data.le_sec_cnt > CUT_OFF_VOLTAGE_POWER_UP_DELAY) {
-        NRF_LOG_ERROR("Cut-off voltage reached (%d), going to sleep", m_custom_raw_adv_data.vbatt);
+    if (vbatt < CUT_OFF_VOLTAGE && m_sensors_data.le_sec_cnt > CUT_OFF_VOLTAGE_POWER_UP_DELAY) {
+        NRF_LOG_ERROR("Cut-off voltage reached (%d), going to sleep", vbatt);
         nrf_power_system_off();
         while(1);
+    }
+
+    m_sensors_data.vbuff_pos = (m_sensors_data.vbuff_pos + 1) % SENSORS_BUFFER_LEN;
+    m_sensors_data.vbatt_samples[m_sensors_data.vbuff_pos] = vbatt;
+
+    uint32_t sum = 0;
+    for (int i = 0; i < SENSORS_BUFFER_LEN; i++) {
+        sum += m_sensors_data.vbatt_samples[i];
+    }
+    m_sensors_data.vbatt = sum/SENSORS_BUFFER_LEN;
+
+
+    if (m_sensors_data.vbatt > 3500) {
+        m_custom_adv_data.vbatt[0] = 20 + (uint8_t)((m_sensors_data.vbatt-3500)/8.75); // 4.2V = 100%, 3.5V = 20%
+    } if (m_sensors_data.vbatt < 2740) {
+        m_custom_adv_data.vbatt[0] = 0; // <2.74V = 0%
+    } else {
+        m_custom_adv_data.vbatt[0] = (uint8_t)((m_sensors_data.vbatt-2740)/38);        // 3.5V = 20%,  2.74V = 0%
     }
 }
 
 /**@brief Function for updating the TEMP field of TLM*/
 static void update_temp(void) {
-    (void)sd_temp_get(&m_custom_raw_adv_data.temp);                            // get new temperature
-    int16_t temp_new = (int16_t) m_custom_raw_adv_data.temp;                   // convert from int32_t to int16_t
-    //temp[0] = (uint8_t)((temp_new >> 2) & 0xFFUL); // Right-shift by two to remove decimal part
-    //temp[1] = (uint8_t)((temp_new << 6) & 0xFFUL); // Left-shift 6 to get fractional part with 0.25 degrees C resolution
+    int32_t temp;
+    sd_temp_get(&temp);
 
-    temp_new = temp_new * 25; // temp in 10bits converted to 0.01C units (100*t/4) 
-    m_custom_adv_data.temp[1] = (uint8_t)(temp_new >> 8);
-    m_custom_adv_data.temp[0] = (uint8_t)temp_new;
-}
+    m_sensors_data.tbuff_pos = (m_sensors_data.tbuff_pos + 1) % SENSORS_BUFFER_LEN;
+    m_sensors_data.temp_samples[m_sensors_data.tbuff_pos] = (int16_t) temp;
+
+    int32_t sum = 0;
+    for (int i = 0; i < SENSORS_BUFFER_LEN; i++) {
+        sum += m_sensors_data.temp_samples[i];
+    }
+    m_sensors_data.temp = sum/SENSORS_BUFFER_LEN;
+
+    temp = m_sensors_data.temp * 25; // temp in 10bits converted to 0.01C units (100*t/4)    
+    m_custom_adv_data.temp[1] = (uint8_t)(temp >> 8);
+    m_custom_adv_data.temp[0] = (uint8_t)temp;
+} 
 
 static void increase_sec_cnt(void)
 {
-    m_custom_raw_adv_data.le_sec_cnt++;
+    m_sensors_data.le_sec_cnt++;
 
-    uint32_t be_sec_cnt = BYTES_REVERSE_32BIT(m_custom_raw_adv_data.le_sec_cnt);
+    uint32_t be_sec_cnt = BYTES_REVERSE_32BIT(m_sensors_data.le_sec_cnt);
     memcpy(m_custom_adv_data.sec_cnt, (uint8_t *)(&be_sec_cnt), 4);
 }
 

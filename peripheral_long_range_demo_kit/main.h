@@ -20,9 +20,10 @@
 #define APP_BLE_CONN_CFG_TAG 1  /**< A tag that refers to the BLE stack configuration. */
 #define APP_BLE_OBSERVER_PRIO 3 /**< Application's BLE observer priority. You shouldn't need to modify this value. */
 
+#define CUT_OFF_VOLTAGE_2740 2740
 #define CUT_OFF_VOLTAGE_3000 3000 // Common value for CR2450 and other batteries
 #define CUT_OFF_VOLTAGE_LIPO 3600
-#define CUT_OFF_VOLTAGE CUT_OFF_VOLTAGE_3000
+#define CUT_OFF_VOLTAGE CUT_OFF_VOLTAGE_2740
 
 #define LOW_POWER_VOLTAGE 3400 // Enter low power mode
 
@@ -59,12 +60,18 @@ typedef struct
     uint8_t sec_cnt[4];  // Time since power-on or reboot.
 } custom_adv_data_t;
 
+#define SENSORS_BUFFER_LEN 8
+
 typedef struct
 {
     uint16_t vbatt;      // Variable to hold voltage reading
-    int32_t temp;        // variable to hold temp reading
-    uint32_t le_sec_cnt; // Time since power-on or reboot.
-} custom_raw_adv_data_t;
+    int16_t temp;        // variable to hold temp reading
+    uint16_t vbatt_samples[SENSORS_BUFFER_LEN];
+    int16_t temp_samples[SENSORS_BUFFER_LEN];
+    uint8_t vbuff_pos;        // Circular buffer position
+    uint8_t tbuff_pos;        // Circular buffer position
+    uint32_t le_sec_cnt;     // Time since power-on or reboot.
+} sensors_data_t;
 
 
 static void log_init(void);
