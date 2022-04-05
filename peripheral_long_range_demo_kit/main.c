@@ -291,7 +291,7 @@ static void advertising_data_set(bool set_adv_params) {
 
     ble_advdata_service_data_t service_data[3];
 
-    service_data[0].service_uuid =  BLE_UUID_BATTERY_SERVICE;
+    service_data[0].service_uuid =  0x1801;
     service_data[0].data.size = sizeof(m_custom_adv_data.vbatt);
     service_data[0].data.p_data = (uint8_t *)&m_custom_adv_data.vbatt;
 
@@ -565,13 +565,15 @@ static void update_vbatt(void) {
     m_sensors_data.vbatt = sum/SENSORS_BUFFER_LEN;
 
 
-    if (m_sensors_data.vbatt > 3500) {
-        m_custom_adv_data.vbatt[0] = 20 + (uint8_t)((m_sensors_data.vbatt-3500)/8.75); // 4.2V = 100%, 3.5V = 20%
-    } if (m_sensors_data.vbatt < 2740) {
-        m_custom_adv_data.vbatt[0] = 0; // <2.74V = 0%
-    } else {
-        m_custom_adv_data.vbatt[0] = (uint8_t)((m_sensors_data.vbatt-2740)/38);        // 3.5V = 20%,  2.74V = 0%
-    }
+    //if (m_sensors_data.vbatt > 3500) {
+    //    m_custom_adv_data.vbatt[0] = 20 + (uint8_t)((m_sensors_data.vbatt-3500)/8.75); // 4.2V = 100%, 3.5V = 20%
+    //} if (m_sensors_data.vbatt < 2740) {
+    //    m_custom_adv_data.vbatt[0] = 0; // <2.74V = 0%
+    //} else {
+    //    m_custom_adv_data.vbatt[0] = (uint8_t)((m_sensors_data.vbatt-2740)/38);        // 3.5V = 20%,  2.74V = 0%
+    //}
+    m_custom_adv_data.vbatt[0] = (uint8_t)(m_sensors_data.vbatt >> 8);
+    m_custom_adv_data.vbatt[1] = (uint8_t)m_sensors_data.vbatt;
 }
 
 /**@brief Function for updating the TEMP field of TLM*/

@@ -55,7 +55,7 @@ typedef enum {
 
 typedef struct
 {
-    uint8_t vbatt[1];    // Variable to hold voltage reading
+    uint8_t vbatt[2];    // Variable to hold voltage reading
     uint8_t temp[2];     // variable to hold temp reading
     uint8_t sec_cnt[4];  // Time since power-on or reboot.
 } custom_adv_data_t;

@@ -60,7 +60,7 @@
 
 // <s> DEVICE_NAME - Name of device. Will be included in the advertising data.
 #ifndef DEVICE_NAME
-#define DEVICE_NAME "MiGato"
+#define DEVICE_NAME "MyCat"
 #endif
 
 // <o> ES_STOPWATCH_MAX_USERS - Maximum amount of users that can be registered with the es_stopwatch module.
