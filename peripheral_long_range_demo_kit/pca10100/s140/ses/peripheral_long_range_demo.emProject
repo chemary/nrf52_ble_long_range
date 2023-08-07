@@ -156,7 +156,7 @@
     gcc_optimization_level="Optimize For Size" />
   <configuration
     Name="Debug"
-    c_preprocessor_definitions="DEBUG; DEBUG_NRF"
+    c_preprocessor_definitions="DEBUG;DEBUG_NRF"
     gcc_enable_all_warnings="No"
     gcc_optimization_level="None" />
 </solution>

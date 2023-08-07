@@ -114,8 +114,12 @@ static void advdata_update_handler(void *p_context) {
 
     increase_sec_cnt();
 
-    // Update batt and temp less often in low power mode
-    if (m_power_mode == POWER_MODE_LOW_BATT && m_sensors_data.le_sec_cnt % 6 != 0) {
+    // Update batt and temp at advertisement rate
+    int rate = adv_interval / 1600; // 1 second
+    if (rate < 1) {
+        rate = 1;
+    }
+    if (m_sensors_data.le_sec_cnt % rate != 0) {
         return;
     }
 
@@ -564,14 +568,6 @@ static void update_vbatt(void) {
     }
     m_sensors_data.vbatt = sum/SENSORS_BUFFER_LEN;
 
-
-    //if (m_sensors_data.vbatt > 3500) {
-    //    m_custom_adv_data.vbatt[0] = 20 + (uint8_t)((m_sensors_data.vbatt-3500)/8.75); // 4.2V = 100%, 3.5V = 20%
-    //} if (m_sensors_data.vbatt < 2740) {
-    //    m_custom_adv_data.vbatt[0] = 0; // <2.74V = 0%
-    //} else {
-    //    m_custom_adv_data.vbatt[0] = (uint8_t)((m_sensors_data.vbatt-2740)/38);        // 3.5V = 20%,  2.74V = 0%
-    //}
     m_custom_adv_data.vbatt[0] = (uint8_t)(m_sensors_data.vbatt >> 8);
     m_custom_adv_data.vbatt[1] = (uint8_t)m_sensors_data.vbatt;
 }

@@ -3,8 +3,13 @@
  <Bookmarks/>
  <Breakpoints groups="Breakpoints" active_group="Breakpoints">
   <BreakpointListItem trigger="" line="218" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="4" filename="../../../../../../../components/libraries/bsp/bsp.c" useHWbreakpoint="false"/>
-  <BreakpointListItem trigger="" line="585" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="4" filename="../../../main.c" useHWbreakpoint="false"/>
+  <BreakpointListItem trigger="" line="220" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="4" filename="../../../main.c" useHWbreakpoint="false"/>
+  <BreakpointListItem trigger="" line="226" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="2" filename="../../../main.c" useHWbreakpoint="false"/>
+  <BreakpointListItem trigger="" line="237" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="2" filename="../../../main.c" useHWbreakpoint="false"/>
+  <BreakpointListItem trigger="" line="548" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="2" filename="../../../main.c" useHWbreakpoint="false"/>
+  <BreakpointListItem trigger="" line="556" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="4" filename="../../../main.c" useHWbreakpoint="false"/>
   <BreakpointListItem trigger="" line="7446" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="4" filename="../config/sdk_config.h" useHWbreakpoint="false"/>
+  <Exceptions set="MemManage;UsageFault_Coprocessor;UsageFault_CheckingError;UsageFault_StateError;BusFault;ExceptionEntryReturnFault;HardFault"/>
  </Breakpoints>
  <ExecutionProfileWindow/>
  <FrameBufferWindow>
@@ -31,6 +36,7 @@
   <ProjectSessionItem path="peripheral_long_range_demo_pca10100_s140;peripheral_long_range_demo_pca10100_s140"/>
   <ProjectSessionItem path="peripheral_long_range_demo_pca10100_s140;peripheral_long_range_demo_pca10100_s140;Application"/>
   <ProjectSessionItem path="peripheral_long_range_demo_pca10100_s140;peripheral_long_range_demo_pca10100_s140;Board Definition"/>
+  <ProjectSessionItem path="peripheral_long_range_demo_pca10100_s140;peripheral_long_range_demo_pca10100_s140;Board Support"/>
   <ProjectSessionItem path="peripheral_long_range_demo_pca10100_s140;peripheral_long_range_demo_pca10100_s140;None"/>
   <ProjectSessionItem path="peripheral_long_range_demo_pca10100_s140;peripheral_long_range_demo_pca10100_s140;nRF_BLE"/>
   <ProjectSessionItem path="peripheral_long_range_demo_pca10100_s140;peripheral_long_range_demo_pca10100_s140;nRF_Drivers"/>
@@ -69,6 +75,7 @@
    <Watchpoint expression="m_conn_handle" name="m_conn_handle" radix="-1" linenumber="0" filename="../ses"/>
    <Watchpoint expression="p_advdata" name="p_advdata" radix="-1" linenumber="509" filename="../../../../../../../components/ble/common/ble_advdata.c"/>
    <Watchpoint expression="p_encoded_data" name="p_encoded_data" radix="-1" linenumber="510" filename="../../../../../../../components/ble/common/ble_advdata.c"/>
+   <Watchpoint expression="m_sensors_data" name="m_sensors_data" radix="-1" linenumber="577" filename="../../../main.c"/>
   </Watches>
  </Watch1>
  <Watch2>
@@ -81,18 +88,22 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="30" y="26" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/main.c" useBinaryEdit="0" left="0" path="../../../main.h" selected="0" top="0" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="49" y="549" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../main.c" selected="0" top="535" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="8" y="27" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/main.c" useBinaryEdit="0" left="0" path="../../../main.h" selected="0" top="0" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="621" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="605" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="53" y="112" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/main.c" useBinaryEdit="0" left="0" path="../../../../../../../components/libraries/log/nrf_log.h" selected="0" top="98" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="23" y="202" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/components/libraries/log/nrf_log.h" useBinaryEdit="0" left="0" path="../../../../../../../components/libraries/log/src/nrf_log_internal.h" selected="0" top="187" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="27" y="62" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../config/sdk_config.h" selected="1" top="42" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="26" y="62" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/main.c" useBinaryEdit="0" left="0" path="../config/sdk_config.h" selected="0" top="44" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="21" y="900" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/main.c" useBinaryEdit="0" left="0" path="../../../../../../../components/softdevice/s140/headers/nrf_soc.h" selected="0" top="892" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="65" y="77" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/main.c" useBinaryEdit="0" left="0" path="../../../battery_voltage_saadc.c" selected="0" top="67" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="86" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/main.c" useBinaryEdit="0" left="0" path="../../../battery_voltage_saadc.c" selected="0" top="57" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="32" y="85" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/battery_voltage_saadc.c" useBinaryEdit="0" left="0" path="../../../../../../../integration/nrfx/legacy/nrf_drv_saadc.h" selected="0" top="70" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="40" y="86" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/integration/nrfx/legacy/nrf_drv_saadc.h" useBinaryEdit="0" left="0" path="../../../../../../../modules/nrfx/drivers/include/nrfx_saadc.h" selected="0" top="72" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="12" y="121" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../../../../../integration/nrfx/legacy/nrf_drv_uart.h" selected="0" top="93" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="99" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="83" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="42" y="2042" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/main.c" useBinaryEdit="0" left="0" path="../../../../../../../components/softdevice/s140/headers/ble_gap.h" selected="0" top="2016" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="37" y="410" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/main.c" useBinaryEdit="0" left="14" path="../../../../../../../components/softdevice/s140/headers/ble_gap.h" selected="0" top="393" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="860" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit/main.c" useBinaryEdit="0" left="0" path="../../../../../../../components/libraries/timer/app_timer.c" selected="0" top="829" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="99" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="0" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="45" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/components/softdevice/s140/headers/ble_gap.h" useBinaryEdit="0" left="0" path="../../../../../../../components/softdevice/s140/headers/ble_err.h" selected="0" top="42" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="31" y="68" useTextEdit="1" openedFrom="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/components/softdevice/s140/headers/ble_err.h" useBinaryEdit="0" left="0" path="../../../../../../../components/softdevice/s140/headers/nrf_error.h" selected="0" top="45" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="126" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../../../../../components/libraries/log/src/nrf_log_frontend.c" selected="0" top="110" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="71" useTextEdit="1" openedFrom="" useBinaryEdit="0" left="0" path="../../../../../../../modules/nrfx/mdk/ses_startup_nrf52833.s" selected="0" top="55" codecName=""/>
  </Files>
  <ARMCrossStudioWindow activeProject="peripheral_long_range_demo_pca10100_s140" fileDialogDefaultFilter="*" autoConnectTarget="J-Link" buildConfiguration="Release" sessionSettings="" debugSearchFileMap="" fileDialogInitialDirectory="/home/jmherrero/personal/projects/nRF5_SDK_17.1.0_ddde560/examples/ble_peripheral/nRF52-ble-long-range-demo/peripheral_long_range_demo_kit" debugSearchPath="" autoConnectCapabilities="3711"/>
 </session>
