@@ -51,7 +51,7 @@
 //==========================================================
 // <o> ADV_INTERVAL - Advertising interval (in units of 0.625 ms) 
 #ifndef ADV_INTERVAL
-#define ADV_INTERVAL 1600
+#define ADV_INTERVAL 1200
 #endif
 
 #ifndef ADV_INTERVAL_SLOW

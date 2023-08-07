@@ -551,6 +551,14 @@ static void update_vbatt(void) {
         disconnect_stop_adv();
         advertising_data_set(true);
         advertising_start();
+    } else if (vbatt > (LOW_POWER_VOLTAGE + 200) && m_power_mode == LOW_POWER_VOLTAGE) {
+        NRF_LOG_ERROR("High voltage (%d), set fast advertisement", vbatt);
+        m_power_mode = POWER_MODE_NORMAL;
+        adv_interval = ADV_INTERVAL;
+        // m_output_power_selected = SELECTION_8_dBm;
+        disconnect_stop_adv();
+        advertising_data_set(true);
+        advertising_start();
     }
 
     if (vbatt < CUT_OFF_VOLTAGE && m_sensors_data.le_sec_cnt > CUT_OFF_VOLTAGE_POWER_UP_DELAY) {
