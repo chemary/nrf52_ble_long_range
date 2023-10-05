@@ -138,6 +138,10 @@
       link_use_linker_script_file="No"
       linker_section_placement_file="flash_placement.xml"
       supplyPower="Yes" />
+    <configuration
+      Name="Debug"
+      debug_target_connection="J-Link"
+      supplyPower="Yes" />
   </project>
   <configuration
     Name="Release"
@@ -158,5 +162,5 @@
     Name="Debug"
     c_preprocessor_definitions="DEBUG;DEBUG_NRF"
     gcc_enable_all_warnings="No"
-    gcc_optimization_level="None" />
+    gcc_optimization_level="Level 1" />
 </solution>
