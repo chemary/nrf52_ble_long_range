@@ -84,3 +84,4 @@ static void increase_sec_cnt(void);
 static void disconnect_stop_adv(void);
 static void advertising_start(void);
 static void advertising_data_set(bool set_adv_params);
+static void change_addr(ble_gap_addr_t my_addr);

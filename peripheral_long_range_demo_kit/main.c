@@ -76,7 +76,7 @@ static uint8_t m_enc_advdata[2][BLE_GAP_ADV_SET_DATA_SIZE_MAX];  /**< Buffer for
 
 static uint32_t adv_interval = ADV_INTERVAL; // Advertising interval (in units of 0.625 ms) 
 
-static adv_scan_type_seclection_t m_adv_scan_type_selected = SELECTION_CONNECTABLE; /**< Global variable holding the current scan selection mode. */
+static adv_scan_type_seclection_t m_adv_scan_type_selected = SELECTION_NON_CONNECTABLE; /**< Global variable holding the current scan selection mode. */
 static adv_scan_phy_seclection_t m_adv_scan_phy_selected = SELECTION_CODED_PHY;     /**< Global variable holding the current phy selection. */
 static output_power_seclection_t m_output_power_selected = SELECTION_8_dBm;         /**< Global variable holding the current output power selection. */
 static power_mode_t m_power_mode = POWER_MODE_NORMAL;                                /**< Global variable holding the current power mode. */
@@ -137,6 +137,13 @@ static void advdata_update_handler(void *p_context) {
     if (m_conn_handle == BLE_CONN_HANDLE_INVALID) {
         advertising_data_set(false);
     }
+}
+
+void change_addr(ble_gap_addr_t my_addr)
+{
+    uint32_t err_code;
+    err_code = sd_ble_gap_addr_set(&my_addr);
+    APP_ERROR_CHECK(err_code);
 }
 
 /**@brief Function for handling BLE_GAP_EVT_CONNECTED events.
@@ -319,7 +326,7 @@ static void advertising_data_set(bool set_adv_params) {
     data while advertising, new advertising buffers must be provided"*/
     m_adv_data.adv_data.p_data = (m_adv_data.adv_data.p_data == m_enc_advdata[0])
                                 ? m_enc_advdata[1] : m_enc_advdata[0];
-
+    m_adv_data.adv_data.len = BLE_GAP_ADV_SET_DATA_SIZE_MAX;
     ret = ble_advdata_encode(&adv_data, m_adv_data.adv_data.p_data, &m_adv_data.adv_data.len);
     APP_ERROR_CHECK(ret);
 
@@ -332,7 +339,7 @@ static void advertising_data_set(bool set_adv_params) {
 
     ble_gap_adv_params_t adv_params = {
         .properties = {
-            .type = BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED,
+            .type = BLE_GAP_ADV_TYPE_NONCONNECTABLE_SCANNABLE_UNDIRECTED,
         },
         .p_peer_addr = NULL,
         .filter_policy = BLE_GAP_ADV_FP_ANY,

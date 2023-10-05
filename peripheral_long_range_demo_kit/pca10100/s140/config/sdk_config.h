@@ -51,11 +51,11 @@
 //==========================================================
 // <o> ADV_INTERVAL - Advertising interval (in units of 0.625 ms) 
 #ifndef ADV_INTERVAL
-#define ADV_INTERVAL 1200
+#define ADV_INTERVAL (uint16_t)(MSEC_TO_UNITS(1200, UNIT_0_625_MS)) 
 #endif
 
 #ifndef ADV_INTERVAL_SLOW
-#define ADV_INTERVAL_SLOW 9600
+#define ADV_INTERVAL_SLOW (uint16_t)(MSEC_TO_UNITS(9600, UNIT_0_625_MS))  // 9600
 #endif
 
 // <s> DEVICE_NAME - Name of device. Will be included in the advertising data.
@@ -7267,7 +7267,7 @@
 #endif
 // <o> NRF_LOG_BACKEND_UART_TX_PIN - UART TX pin 
 #ifndef NRF_LOG_BACKEND_UART_TX_PIN
-#define NRF_LOG_BACKEND_UART_TX_PIN 31
+#define NRF_LOG_BACKEND_UART_TX_PIN 24
 #endif
 
 // <o> NRF_LOG_BACKEND_UART_BAUDRATE  - Default Baudrate

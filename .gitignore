@@ -15,7 +15,6 @@
 *.lst
 *.lnp
 *.bak
-
 *.ini
 *.iex
 *.sct
@@ -30,4 +29,4 @@ RTE/
 *.ind
 *.ld
 *.jlink
-
+**/Output/*
